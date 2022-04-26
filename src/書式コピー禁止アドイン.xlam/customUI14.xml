@@ -1,0 +1,17 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
+	<ribbon startFromScratch="false">
+		<tabs>
+			<tab id="FormatCopyBlockerTab" label="書式コピペ禁止">
+				<group id="FormatCopyBlockerTabGroup1" label="セル結合の解析">
+					<button id="FormatCopyBlockerButton01" label="監視開始" imageMso="MediaPlayPreview" size="large" onAction="onAction_Start_FormatCopyBlocker" />
+					<button id="FormatCopyBlockerButton02" label="監視停止" imageMso="Media14PausePreview" size="large" onAction="onAction_Stop_FormatCopyBlocker" />
+				</group>
+				<group id="FormatCopyBlockerTabGroup3" label="機能">
+					<button id="FormatCopyBlockerButton97" label="設定" imageMso="CurrentViewSettings" size="large" onAction="onAction_AddinConfig" />
+					<button id="FormatCopyBlockerButton98" label="情報を表示" imageMso="About" size="large" onAction="onAction_AddinInfo" />
+					<button id="FormatCopyBlockerButton99" label="アドインを終了" imageMso="XDPPClose" size="large" onAction="onAction_AddinEnd" />
+				</group>
+			</tab>
+		</tabs>
+	</ribbon>
+</customUI>
