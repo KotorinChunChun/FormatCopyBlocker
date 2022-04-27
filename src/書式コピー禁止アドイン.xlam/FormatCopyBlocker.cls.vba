@@ -41,7 +41,7 @@ Private Sub app_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
             rng.ClearContents
         End If
         Call kccFuncClipboard.SetClipboardByTextAPI(tsvText)
-    Else 'If kccFuncClipboard.GetTextByClipboardText Then
+    Else
         Rem コピー中のデータからテキストのみ抽出して置換
         Debug.Print "txt"
         Dim cbText As String: cbText = kccFuncClipboard.GetTextByClipboardTextDataObject()
