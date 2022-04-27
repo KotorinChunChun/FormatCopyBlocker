@@ -39,8 +39,13 @@ Private Declare PtrSafe Function GlobalUnlock Lib "Kernel32" (ByVal hMem As Long
 Private Declare PtrSafe Function GlobalAlloc Lib "Kernel32" (ByVal wFlags As Long, ByVal dwBytes As LongPtr) As LongPtr
 Private Declare PtrSafe Function GlobalSize Lib "Kernel32" (ByVal hMem As LongPtr) As LongPtr
 
-Private Declare PtrSafe Function MoveMemory Lib "Kernel32" Alias "RtlMoveMemory" (ByRef Destination As Any, ByRef Source As Any, ByVal length As LongPtr) As LongPtr
 Private Declare PtrSafe Function lstrcpy Lib "Kernel32" Alias "lstrcpyA" (ByVal lpString1 As LongPtr, ByVal lpString2 As String) As LongPtr
+
+#If VBA7 And Win64 Then
+    Private Declare PtrSafe Function MoveMemory Lib "Kernel32" Alias "RtlMoveMemory" (ByRef Destination As Any, ByRef Source As Any, ByVal length As LongPtr) As LongPtr
+#Else
+    Private Declare PtrSafe Sub MoveMemory Lib "Kernel32" Alias "RtlMoveMemory" (ByVal Destination As Long, ByVal Source As Long, ByVal length As Long)
+#End If
 
 Rem 定数宣言
 Private Const GMEM_MOVEABLE         As Long = &H2
@@ -51,64 +56,50 @@ Private Const CF_OEMTEXT            As Long = 7
 
 Rem 指定文字列をクリップボードに保存
 Public Function SetClipboardByTextAPI(strData As String, Optional wFormat As Long = CF_TEXT)
-#If VBA7 And Win64 Then
-  Dim lngHwnd As LongPtr, lngMEM As LongPtr
-  Dim lngDataLen As LongPtr
-  Dim lngRet As LongPtr
-#Else
-  Dim lngHwnd As Long, lngMEM As Long
-  Dim lngDataLen As Long
-  Dim lngRet As Long
-#End If
-  Dim blnErrflg As Boolean
-  Const GMEM_MOVEABLE = 2
-
-  blnErrflg = True
-  
-  'クリップボードをオープン
-  If OpenClipboard(0&) <> 0 Then
-  
-    'クリップボードを空にする
-    If EmptyClipboard() <> 0 Then
     
-        'グローバルメモリに書き込む領域を確保してそのハンドルを取得
-        lngDataLen = LenB(strData) + 1
-        
-        lngHwnd = GlobalAlloc(GMEM_MOVEABLE, lngDataLen)
-        
-        If lngHwnd <> 0 Then
-      
-            'グローバルメモリをロックしてそのポインタを取得
-            lngMEM = GlobalLock(lngHwnd)
-            
-            If lngMEM <> 0 Then
-        
-                '書き込むテキストをグローバルメモリにコピー
-                If lstrcpy(lngMEM, strData) <> 0 Then
-                    'クリップボードにメモリブロックのデータを書き込み
-                    lngRet = SetClipboardData(wFormat, lngHwnd)
-                    blnErrflg = False
+#If VBA7 And Win64 Then
+    Dim lngHwnd As LongPtr
+    Dim lngMem As LongPtr
+    Dim lngDataLen As LongPtr
+    Dim lngRet As LongPtr
+#Else
+    Dim lngHwnd As Long
+    Dim lngMem As Long
+    Dim lngDataLen As Long
+    Dim lngRet As Long
+#End If
+    Const GMEM_MOVEABLE = 2
+    
+    Dim blnErrflg As Boolean: blnErrflg = True
+    
+    If OpenClipboard(0&) <> 0 Then
+        If EmptyClipboard() <> 0 Then
+            lngDataLen = LenB(strData) + 1
+            lngHwnd = GlobalAlloc(GMEM_MOVEABLE, lngDataLen)
+            If lngHwnd <> 0 Then
+                lngMem = GlobalLock(lngHwnd)
+                If lngMem <> 0 Then
+                    If lstrcpy(lngMem, strData) <> 0 Then
+                        lngRet = SetClipboardData(wFormat, lngHwnd)
+                        blnErrflg = False
+                    End If
+                    lngRet = GlobalUnlock(lngHwnd)
                 End If
-                'グローバルメモリブロックのロックを解除
-                lngRet = GlobalUnlock(lngHwnd)
             End If
         End If
+        lngRet = CloseClipboard()
     End If
-    'クリップボードをクローズ(これはWindowsに制御が
-    '戻らないうちにできる限り速やかに行う)
-    lngRet = CloseClipboard()
-  End If
-
-'  If blnErrflg Then MsgBox "クリップボードに情報が書き込めません", vbOKOnly, C_TITLE
+    
     SetClipboardByTextAPI = blnErrflg
-
+    
 End Function
 
 Rem クリップボードの文字列を取得
+Rem  失敗時はエラーを無視して""を返す
 Public Function GetTextByClipboardTextDataObject() As String
     Dim cb As New DataObject
     cb.GetFromClipboard
-    On Error Resume Next    '失敗時はエラー無視。""を返す
+    On Error Resume Next
     GetTextByClipboardTextDataObject = cb.GetText
     On Error GoTo 0
     'Debug.Print CB.GetText
@@ -116,47 +107,44 @@ End Function
 
 Rem コピー中のセルアドレスを取得
 Public Function GetAddressByClipboardCells(SheetName As Variant) As String
-On Error GoTo ErrHandler
     
-    Dim i As Long
-    Dim Format As Long
-    Dim data() As Byte
-    Dim Address As String
 #If VBA7 And Win64 Then
-    Dim hMem As LongPtr
-    Dim Size As LongPtr
+    Dim lngHwnd As LongPtr
+    Dim lngDataLen As LongPtr
     Dim p As LongPtr
 #Else
-    Dim hMem As Long
-    Dim Size As Long
+    Dim lngHwnd As Long
+    Dim lngDataLen As Long
     Dim p As Long
 #End If
     
-    Call OpenClipboard(0)
-    hMem = GetClipboardData(RegisterClipboardFormat("Link"))
-    If hMem = 0 Then
-        Call CloseClipboard
-        Exit Function
-    End If
+    If OpenClipboard(0&) = 0 Then Exit Function
     
-    Size = GlobalSize(hMem)
-    p = GlobalLock(hMem)
-    ReDim data(0 To CLng(Size) - CLng(1))
+    lngHwnd = GetClipboardData(RegisterClipboardFormat("Link"))
+    If lngHwnd = 0 Then GoTo ExitFunctionCloseClipboard
+    
+    lngDataLen = GlobalSize(lngHwnd)
+    p = GlobalLock(lngHwnd)
+    Dim data() As Byte
+    ReDim data(0 To CLng(lngDataLen) - CLng(1))
 #If VBA7 And Win64 Then
-    Call MoveMemory(data(0), ByVal p, Size)
+    Call MoveMemory(data(0), ByVal p, lngDataLen)
 #Else
-    Call MoveMemory(CLng(VarPtr(data(0))), p, Size)
+    Call MoveMemory(CLng(VarPtr(data(0))), p, lngDataLen)
 #End If
-    Call GlobalUnlock(hMem)
+    Call GlobalUnlock(lngHwnd)
     
     Call CloseClipboard
     
-    For i = 0 To CLng(Size) - CLng(1)
+    Dim i As Long
+    For i = 0 To CLng(lngDataLen) - CLng(1)
         If data(i) = 0 Then
             data(i) = Asc(" ")
         End If
-    Next i
+    Next
     
+    Rem ※複数セルには対応していない
+    Dim Address As String
     Address = Trim(StrConv(data, vbUnicode))
 Rem Debug.Print "Address: " + Address
 Rem     If InStr(Address, "]" & SheetName) <> 0 Then
@@ -167,13 +155,15 @@ Rem     End If
     GetAddressByClipboardCells = Address
     Exit Function
     
-ErrHandler:
+ExitFunctionCloseClipboard:
     Call CloseClipboard
     GetAddressByClipboardCells = ""
 End Function
 
 Rem コピー中のセル範囲Rangeオブジェクトを取得
 Public Function GetRangeByClipboardCells() As Range
+    
+    Rem "Excel [Book2]Sheet1 R7C16:R15C20"
     Dim ssText As String
     ssText = GetAddressByClipboardCells(Excel.ActiveSheet.Name)
     If ssText = "" Then
@@ -181,19 +171,18 @@ Public Function GetRangeByClipboardCells() As Range
         Exit Function
     End If
     
-     'Excel [Book2]Sheet1 R7C16:R15C20
-     'ブック名：左から[と右から]までの間
-    'シート名：右から]から までの間
-    'R1C1セル：右から 以降
-    
+    Rem ブック名：左から[と右から]までの間
     Dim BookName As String
-    Dim SheetName As Variant
-    Dim CellName As String
-    
     ssText = Right(ssText, Len(ssText) - InStr(ssText, "["))
     BookName = Left(ssText, InStrRev(ssText, "]") - 1)
+    
+    Rem シート名：右から]から までの間
+    Dim SheetName As Variant
     ssText = Right(ssText, Len(ssText) - 1 - Len(BookName))
     SheetName = Left(ssText, InStrRev(ssText, " ") - 1)
+    
+    Rem R1C1セル：右から 以降
+    Dim CellName As String
     ssText = Right(ssText, Len(ssText) - 1 - Len(SheetName))
     CellName = Application.ConvertFormula(ssText, xlR1C1, xlA1)
     

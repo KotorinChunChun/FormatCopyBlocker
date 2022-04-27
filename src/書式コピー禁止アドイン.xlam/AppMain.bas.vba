@@ -8,14 +8,15 @@ Rem @author @KotorinChunChun
 Rem
 Rem @update
 Rem    2022/04/26 初回版
+Rem    2022/04/27 32bit版に対応
 Rem
 Option Explicit
 Option Private Module
 
 Public Const APP_NAME = "書式コピー禁止アドイン"
 Public Const APP_CREATER = "@KotorinChunChun"
-Public Const APP_VERSION = "0.01"
-Public Const APP_UPDATE = "2022/04/26"
+Public Const APP_VERSION = "0.02"
+Public Const APP_UPDATE = "2022/04/27"
 Public Const APP_URL = "https://www.excel-chunchun.com/entry/format_copy_blocker"
 
 '--------------------------------------------------
